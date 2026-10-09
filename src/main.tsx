@@ -36,7 +36,8 @@ function Staff({ notes, start, current, error }: { notes: Note[]; start: number;
       const down = step >= 4;
       return <g key={i}>
         {active && <rect x={x - 32} y={Math.min(66, y - 17)} width="70" height={Math.max(96, 151 - y)} rx="12" fill={error ? '#fff0ee' : '#e0f6ec'} fillOpacity="0.65" stroke={error ? '#e8aaa3' : '#a7e3cd'} />}
-        {!rowKey && <text x={x - 36} y={note.clef === 'treble' ? 131 : note.clef === 'bass' ? 116 : note.clef === 'alto' ? 119 : 107} className="clef" fill={color} fontSize={note.clef === 'treble' ? 53 : 40}>{note.clef === 'treble' ? '𝄞' : note.clef === 'bass' ? '𝄢' : '𝄡'}</text>}
+        {/* Reserve a separate column for the clef, including double-flat questions. */}
+        {!rowKey && <text x={x - 65} y={note.clef === 'treble' ? 131 : note.clef === 'bass' ? 116 : note.clef === 'alto' ? 119 : 107} className="clef question-clef" fill={color} fontSize={note.clef === 'treble' ? 53 : 40}>{note.clef === 'treble' ? '𝄞' : note.clef === 'bass' ? '𝄢' : '𝄡'}</text>}
         {rowKey && <line x1={x + 36} x2={x + 36} y1="82" y2="130" stroke="#d1dbd2" />}
         {ledgerSteps(step).map(l => <line key={l} x1={x - 12} x2={x + 15} y1={130 - l * 6} y2={130 - l * 6} stroke={color} strokeWidth="1.5" />)}
         {note.accidental && <text className="clef accidental" x={x - (note.accidental === '𝄫' ? 29 : 21)} y={y + 6} fontSize="25" fill={color}>{note.accidental}</text>}
