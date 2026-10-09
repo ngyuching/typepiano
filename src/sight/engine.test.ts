@@ -45,7 +45,7 @@ test('meter grouping and tempo units remain consistent',()=>{
   assert.equal(secondsPerTick(ex,60)*ex.barTicks,2);
 });
 test('exact performance matches once, tied continuations require no new onset',()=>{
-  const s={...sightDefaults,grade:5,short:true};const ex=generateExercise(s,12,{meter:'4/4'});const expected=expectedNotes(ex,'both');let state=emptyAssessment();
+  const s={...sightDefaults,mode:'timed' as const,grade:5,short:true};const ex=generateExercise(s,12,{meter:'4/4'});const expected=expectedNotes(ex,'both');let state=emptyAssessment();
   for(const n of expected)state=assessInput(expected,state,n.midi,n.tick*secondsPerTick(ex,s.bpm),ex,s.bpm);
   const result=summarize(ex,s,state,false);assert.equal(result.pitchScore,100);assert.equal(result.rhythmScore,100);assert.equal(result.missed,0);
   for(const event of ex.events.filter(e=>e.tieFrom))assert.ok(!expected.some(n=>n.eventId===event.id));

@@ -14,7 +14,7 @@ try{
   await page.getByRole('button',{name:'產生新曲 ↻',exact:true}).click();await ready();
   const second=await summary();assert.notEqual(second.id,first.id);assert.equal(second.history.length,2);assert.notEqual(second.history[0].fingerprint,first.history[0].fingerprint);assert.equal(second.results,first.results);
   await page.reload();await ready();const third=await summary();assert.equal(third.history.length,3);assert.notEqual(third.history[0].fingerprint,second.history[0].fingerprint);
-  await page.getByLabel('預覽時間').selectOption('0');await page.getByLabel('速度 BPM').fill('160');await page.getByLabel('練習方式').selectOption('slow');await page.getByLabel('聲部').selectOption('right');
+  await page.getByLabel('速度 BPM').fill('160');await page.getByLabel('練習方式').selectOption('slow');await page.getByLabel('聲部').selectOption('right');
   await page.locator('.sight-transport .primary-button').click();await page.getByText('慢練中：',{exact:false}).waitFor();
   await page.getByRole('button',{name:'停止',exact:true}).click();const stopped=await summary();
   await page.getByRole('button',{name:'重練原曲 →',exact:true}).click();await page.getByText('慢練中：',{exact:false}).waitFor();

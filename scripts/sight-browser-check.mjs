@@ -38,7 +38,8 @@ try{
   });
   await page.getByRole('heading',{name:'慢練完成，音符都找到了。'}).waitFor();
   console.log('Slow MIDI completion and result highlighting passed.');
-  assert.ok((await page.locator('.sight-results').innerText()).includes('100%'));
+  assert.ok((await page.locator('.sight-results').innerText()).includes('完成音數'));
+  assert.ok((await page.locator('.sight-results').innerText()).includes('無提示慢練'));
   assert.ok(await page.locator('.score-note.matched').count()>0);
   assert.equal(await page.locator('.sight-history tbody tr').count(),1);
   await page.getByRole('button',{name:'Grade 6',exact:true}).click();

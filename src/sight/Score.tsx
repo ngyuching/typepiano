@@ -1,18 +1,20 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { OpenSheetMusicDisplay } from 'opensheetmusicdisplay';
 import type { Assessment, Exercise, SightReadingSettings } from './engine';
+import type { GuidedGroup } from './guided';
 import { exerciseMusicXML } from './musicxml';
 
 type Position={id:string;tick:number;system:number;x:number;top:number;height:number;sounding:boolean};
-export function Score({exercise,hands,tick,cursor,assessment,result}: {exercise:Exercise;hands:SightReadingSettings['hands'];tick:number;cursor:boolean;assessment:Assessment;result:boolean}) {
+export function Score({exercise,hands,tick,cursor,assessment,result,guidedGroup=null,wrong=false}: {exercise:Exercise;hands:SightReadingSettings['hands'];tick:number;cursor:boolean;assessment:Assessment;result:boolean;guidedGroup?:GuidedGroup|null;wrong?:boolean}) {
   const root=useRef<HTMLDivElement>(null);const container=useRef<HTMLDivElement>(null);
   const hitHeads=useRef(new Map<string,Element[]>());const seenHits=useRef(new Set<string>());
+  const targetBoxes=useRef(new Map<string,{x:number;y:number;width:number;height:number;hand:string}>());
   const positions=useRef<Position[]>([]);const lastSystem=useRef(-1);
   const [width,setWidth]=useState(1000);const [layoutVersion,setLayoutVersion]=useState(0);const [error,setError]=useState('');
   useLayoutEffect(()=>{if(!container.current)return;const resize=new ResizeObserver(entries=>setWidth(Math.round(entries[0].contentRect.width)));resize.observe(container.current);return()=>resize.disconnect();},[]);
   useLayoutEffect(()=>{
     const host=root.current;if(!host)return;
-    let cancelled=false;positions.current=[];hitHeads.current.clear();seenHits.current.clear();setError('');delete host.dataset.renderedExercise;host.replaceChildren();
+    let cancelled=false;targetBoxes.current.clear();positions.current=[];hitHeads.current.clear();seenHits.current.clear();setError('');delete host.dataset.renderedExercise;host.replaceChildren();
     const scroll=document.createElement('div');scroll.className='score-system-scroll';host.appendChild(scroll);
     const busiest=Math.max(...Array.from({length:exercise.bars},(_,bar)=>new Set(exercise.events.filter(e=>e.bar===bar).map(e=>e.tick)).size));
     const minimum=width<600?Math.max(380,130+Math.abs(exercise.keyCount)*12+busiest*24):380;
@@ -44,9 +46,11 @@ export function Score({exercise,hands,tick,cursor,assessment,result}: {exercise:
             }
           }
           for(const node of nodes){
-            node.dataset.eventId=event.id;node.classList.add('score-note');
+            node.dataset.eventId=event.id;node.dataset.hand=event.hand;node.classList.add('score-note');
             if(hands!=='both'&&hands!==event.hand)node.style.opacity='.3';
             const box=node.getBoundingClientRect();const top=box.top-bounds.top;
+            const old=targetBoxes.current.get(event.id);const x=Math.min(old?.x??Infinity,box.left-bounds.left),y=Math.min(old?.y??Infinity,top);
+            targetBoxes.current.set(event.id,{x,y,width:Math.max(old?old.x+old.width:0,box.right-bounds.left)-x,height:Math.max(old?old.y+old.height:0,box.bottom-bounds.top)-y,hand:event.hand});
             const existing=rectangles.get(system);rectangles.set(system,{top:Math.min(existing?.top??top,top),bottom:Math.max(existing?.bottom??0,top+box.height)});
             all.push({id:event.id,tick:event.tick,system,x:box.left-bounds.left,top,height:box.height,sounding:!!event.notes.length});
           }
@@ -75,12 +79,23 @@ export function Score({exercise,hands,tick,cursor,assessment,result}: {exercise:
       const hits=event.notes.filter((_,i)=>matched.has(`${id}:${i}`)).length;
       node.classList.toggle('matched',assessed&&hits===event.notes.length);node.classList.toggle('partial',assessed&&hits>0&&hits<event.notes.length);node.classList.toggle('missed',result&&assessed&&hits===0);
     });
+    root.current.querySelectorAll('.guided-target').forEach(node=>node.remove());
+    const canvas=root.current.querySelector<HTMLElement>('.score-system-canvas');
+    if(guidedGroup&&canvas){
+      for(const id of new Set(guidedGroup.notes.map(n=>n.eventId))){
+        const box=targetBoxes.current.get(id);if(!box)continue;
+        const frame=document.createElement('div');frame.className=`guided-target guided-${box.hand}${wrong?' guided-target-wrong':''}`;
+        frame.dataset.eventId=id;frame.setAttribute('aria-hidden','true');
+        Object.assign(frame.style,{left:`${Math.max(0,box.x-9)}px`,top:`${Math.max(0,box.y-8)}px`,width:`${box.width+18}px`,height:`${box.height+16}px`});
+        const label=document.createElement('span');label.textContent=box.hand==='right'?'右手':'左手';frame.appendChild(label);canvas.appendChild(frame);
+      }
+    }
     const marker=root.current.querySelector<HTMLDivElement>('.score-cursor');if(!marker)return;
-    marker.style.display='none';if(tick<0||!cursor)return;
+    marker.style.display='none';if(tick<0||(!cursor&&!guidedGroup))return;
     const current=positions.current.filter(p=>p.tick<=tick).sort((a,b)=>b.tick-a.tick||Number(b.sounding)-Number(a.sounding))[0];if(!current)return;
-    marker.style.display='block';marker.style.left=`${current.x-4}px`;marker.style.top=`${current.top}px`;marker.style.bottom='auto';marker.style.height=`${current.height}px`;
-    if(lastSystem.current!==current.system){lastSystem.current=current.system;marker.scrollIntoView({block:'nearest',behavior:'smooth'});}
+    marker.style.display=cursor?'block':'none';marker.style.left=`${current.x-4}px`;marker.style.top=`${current.top}px`;marker.style.bottom='auto';marker.style.height=`${current.height}px`;
+    if(lastSystem.current!==current.system){lastSystem.current=current.system;(root.current.querySelector('.guided-target')??marker).scrollIntoView({block:'nearest',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});}
     const scroller=marker.parentElement!.parentElement!;if(current.x<scroller.scrollLeft||current.x>scroller.scrollLeft+scroller.clientWidth-40)scroller.scrollLeft=Math.max(0,current.x-60);
-  },[tick,cursor,assessment,result,layoutVersion,exercise,hands]);
+  },[tick,cursor,assessment,result,layoutVersion,exercise,hands,guidedGroup,wrong]);
   return <div className="sight-score" ref={container} aria-label="鋼琴視奏大譜表">{error&&<p role="alert">樂譜繪製失敗：{error}</p>}<div className="score-system" data-exercise-id={exercise.id} ref={root}/></div>;
 }

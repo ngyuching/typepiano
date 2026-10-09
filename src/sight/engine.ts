@@ -10,14 +10,14 @@ const additions = [ ['C','G','F','Dm','Am'], ['D','Em','Gm'], ['A','Bb','Eb','Bm
 const meterAdditions = [['2/4','3/4','4/4'],[],['3/8'],['6/8'],[],['9/8','5/8','5/4'],['7/8','7/4'],['12/8']];
 const descriptions = ['五指位置、雙手輪流與基本節奏','雙手同奏、附點節奏與連結線','移位、雙音、十六分音符與 3/8','6/8、半音變化與獨立聲部','切分、四音同奏與更多調性','三連音、譜號切換與不規則拍','7/8、7/4 與更豐富聲部','12/8、每手三音和弦與完整樂句'];
 export const sightProfiles: SightReadingProfile[] = Array.from({ length: 8 }, (_, i) => ({ grade:i+1, bars:[6,6,8,8,12,16,20,24][i], keys:additions.slice(0,i+1).flat(), meters:meterAdditions.slice(0,i+1).flat(), chordSize:i < 2 ? 1 : i < 7 ? 2 : 3, description:descriptions[i] }));
-export const sightDefaults: SightReadingSettings = { grade:1, mode:'timed', hands:'both', short:false, bpm:60, preview:30, metronome:true, cursor:true, latency:0 };
+export const sightDefaults: SightReadingSettings = { grade:1, mode:'slow', hands:'both', short:false, bpm:60, preview:30, metronome:true, cursor:true, latency:0 };
 export function sanitizeSight(value: Partial<SightReadingSettings>): SightReadingSettings {
   const s = { ...sightDefaults, ...value };
   if (!Number.isInteger(s.grade) || s.grade < 1 || s.grade > 8) s.grade = 1;
   s.bpm = Number.isFinite(s.bpm) ? Math.max(30, Math.min(160, Math.round(s.bpm))) : 60;
   s.preview = [0,15,30,60].includes(s.preview) ? s.preview : 30;
   s.latency = Number.isFinite(s.latency) ? Math.max(-200,Math.min(200,Math.round(s.latency))) : 0;
-  if (!['timed','slow'].includes(s.mode)) s.mode = 'timed';
+  if (!['timed','slow'].includes(s.mode)) s.mode = sightDefaults.mode;
   if (!['both','left','right'].includes(s.hands)) s.hands = 'both';
   for (const k of ['short','metronome','cursor'] as const) if (typeof s[k] !== 'boolean') s[k] = sightDefaults[k];
   return s;
@@ -85,10 +85,10 @@ export function assessInput(expected:ExpectedNote[],state:Assessment,midi:number
   const wrong=expected.some(n=>!used.has(n.id)&&Math.abs(timeSeconds-n.tick*tickSeconds)*1000<=broad);
   return {...state,extras:state.extras+1,wrong:state.wrong+(wrong?1:0)};
 }
-export type PerformanceResult = { id:string; exerciseId:string; grade:number; mode:'timed'|'slow'; hands:SightReadingSettings['hands']; bpm:number; completedAt:string; listened:boolean; expected:number; matched:number; missed:number; extras:number; wrong:number; pitchScore:number; rhythmScore:number|null };
-export function summarize(ex:Exercise,s:SightReadingSettings,state:Assessment,listened:boolean):PerformanceResult {
+export type PerformanceResult = { id:string; exerciseId:string; grade:number; mode:'timed'|'slow'; hands:SightReadingSettings['hands']; bpm:number; completedAt:string; listened:boolean; expected:number; matched:number; missed:number; extras:number; wrong:number; pitchScore:number; rhythmScore:number|null; hintedGroups?:number };
+export function summarize(ex:Exercise,s:SightReadingSettings,state:Assessment,listened:boolean,hintedGroups?:number):PerformanceResult {
   const total=expectedNotes(ex,s.hands).length; const matched=state.matches.length;
-  return {id:crypto.randomUUID(),exerciseId:ex.id,grade:ex.grade,mode:s.mode,hands:s.hands,bpm:s.bpm,completedAt:new Date().toISOString(),listened,expected:total,matched,missed:Math.max(0,total-matched),extras:state.extras,wrong:state.wrong,pitchScore:Math.round(matched/Math.max(1,total+state.extras)*100),rhythmScore:s.mode==='slow'?null:Math.round(state.matches.filter(m=>m.onTime).length/Math.max(1,total)*100)};
+  return {...(s.mode==='slow'&&hintedGroups!==undefined?{hintedGroups}:{}),id:crypto.randomUUID(),exerciseId:ex.id,grade:ex.grade,mode:s.mode,hands:s.hands,bpm:s.bpm,completedAt:new Date().toISOString(),listened,expected:total,matched,missed:Math.max(0,total-matched),extras:state.extras,wrong:state.wrong,pitchScore:Math.round(matched/Math.max(1,total+state.extras)*100),rhythmScore:s.mode==='slow'?null:Math.round(state.matches.filter(m=>m.onTime).length/Math.max(1,total)*100)};
 }
 export function slowInput(expected:ExpectedNote[],state:Assessment,midi:number):Assessment {
   const used=new Set(state.matches.map(m=>m.id)); const remaining=expected.filter(n=>!used.has(n.id));

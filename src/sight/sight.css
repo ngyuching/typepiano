@@ -4,4 +4,26 @@
 @media(max-width:540px){.site-header{gap:10px;padding:0 12px}.practice-navigation{gap:3px}.practice-navigation button{font-size:10px;padding:8px}.sight-main .intro h1{font-size:22px}.sight-main .range-badge{min-width:90px}.sight-settings{gap:14px}.sight-settings>label{flex:1 1 27%}.sight-settings .sight-check{flex:0 1 auto}.sight-settings select{max-width:100%;width:100%;font-size:10px}.sight-settings input[type=number]{width:100%}.sight-toolbar{padding:13px;align-items:flex-start}.sight-toolbar>div{align-items:flex-start;flex-direction:column;gap:6px}.sight-toolbar strong{font-size:13px}.sight-toolbar span{font-size:9px}.sight-transport{padding:13px;gap:8px}.sight-transport>button,.sight-transport>button:not(.primary-button){font-size:10px;padding:9px 11px}.sight-status{padding:12px;flex-wrap:wrap;gap:8px}.sight-status>span{font-size:11px}.sight-status p{order:3;flex-basis:100%;font-size:10px}.sight-status strong{font-size:10px}.sight-score{padding:5px 4px 12px}.sight-results{padding:22px 18px}.sight-results h2{font-size:18px}.sight-result-grid{grid-template-columns:repeat(3,1fr);gap:20px}.sight-result-grid strong{font-size:25px}.sight-octave{gap:9px}.sight-octave strong{font-size:11px}.sight-history th,.sight-history td{padding:10px}}
 
 .score-note .note-head-hit{fill:#00a578!important;stroke:#00a578!important}
+.score-note .note-head-hit path,.score-note .note-head-hit rect,.score-note .note-head-hit use,.score-note .note-head-hit ellipse{fill:#00a578!important;stroke:#00a578!important}
 @media(prefers-reduced-motion:reduce){.score-note .note-head-hit{filter:none}}
+.guided-panel{padding:18px 24px;background:#f6faf7;border-bottom:1px solid #dce8df;transition:background .15s}
+.guided-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.guided-heading>div{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.guided-heading strong{font-size:14px;color:#315d49}.guided-heading span{font-size:12px;color:#668172}
+.guided-heading button{flex-shrink:0;border:1px solid #b6d4c4;border-radius:6px;padding:9px 14px;background:white;color:#167751;font-size:12px}
+.guided-feedback{font-size:12px;color:#688271;margin:10px 0 0;line-height:1.7;min-height:21px}
+.guided-wrong{background:#fff0ee}.guided-wrong .guided-feedback{color:#b3423b}
+.guided-hint{margin-top:15px;border-top:1px solid #dce8df;padding-top:12px}.guided-hint ul{list-style:none;padding:0;margin:0;display:flex;gap:10px;flex-wrap:wrap}
+.guided-hint li{display:flex;align-items:center;gap:8px;padding:9px 12px;background:white;border:1px solid #d9e8df;border-radius:7px;flex-wrap:wrap}
+.guided-hint li>span,.guided-hint li>small{font-size:11px;color:#647e70}.guided-hint li>strong{font-size:17px;color:#207c59}
+.guided-hint>p{font-size:11px;color:#738b7d;line-height:1.8}
+.hint-keyboard-scroll{overflow-x:auto;background:#29332e;padding:8px;border-radius:8px;max-width:100%}.hint-keyboard{position:relative;height:92px;margin:auto}
+.hint-key{position:absolute;display:flex;align-items:center;justify-content:flex-end;flex-direction:column;box-sizing:border-box;pointer-events:none;font-size:9px;padding-bottom:8px;border-radius:0 0 3px 3px}
+.hint-white{width:36px;height:92px;background:#fff;border:1px solid #a8b5ac;color:#6a7c70}.hint-black{width:22px;height:58px;background:#202723;border:1px solid #080d0a;color:white;z-index:1;font-size:8px}
+.hint-key.hint-target{background:#9de7bc;color:#0b5636;border-color:#00a578}.hint-black.hint-target{background:#16845c;color:white}
+.guided-target{position:absolute;border:2px solid #009c70;border-radius:7px;box-sizing:border-box;pointer-events:none;background:#00ad7c08;z-index:2}
+.guided-target>span{position:absolute;top:-18px;left:0;font-size:10px;line-height:14px;padding:1px 4px;background:white;color:#007d59;border-radius:3px;white-space:nowrap}
+.guided-left{border-color:#397cc0;background:#397cc008}.guided-left>span{color:#25659d}.guided-target-wrong{border-color:#c94a42;background:#c94a4210}
+.guided-result-grid{grid-template-columns:repeat(3,1fr)}.sight-results .guided-result-label{font-size:12px;color:#8c6b30;margin:-8px 0 22px}
+@media(max-width:540px){.guided-panel{padding:14px 12px}.guided-heading{gap:8px;align-items:flex-start}.guided-heading>div{gap:6px;flex-direction:column;align-items:flex-start}.guided-heading strong{font-size:12px}.guided-heading span,.guided-feedback{font-size:11px}.guided-heading button{font-size:11px;padding:8px 10px}.guided-result-grid strong{font-size:22px}}
+@media(prefers-reduced-motion:reduce){.guided-panel{transition:none}}
