@@ -30,7 +30,7 @@ try{
   await page.evaluate(async()=>{
     const engine=await import('/src/sight/engine.ts');
     const s=engine.sanitizeSight(JSON.parse(localStorage.getItem('note-garden-sight-settings-v1')));
-    const ex=engine.generateExercise(s,Math.floor(.123456789*0xffffffff));
+    const ex=engine.generateExercise(s,...(()=>{const m=document.querySelector('.score-system').dataset.exerciseId.match(/^sr-v\d+-(\d+)-(\d+)-([^-]+)-(.+)$/);return [Number(m[1]),{key:m[3],meter:m[4]}];})());
     for(const n of engine.expectedNotes(ex,s.hands)){
       window.testMidi.input.onmidimessage({data:new Uint8Array([0x90,n.midi,100]),timeStamp:performance.now()});
       window.testMidi.input.onmidimessage({data:new Uint8Array([0x80,n.midi,0]),timeStamp:performance.now()});
@@ -96,7 +96,7 @@ try{
   await page.getByText('演奏中，保持節奏',{exact:false}).waitFor();
   await page.evaluate(async()=>{
     const engine=await import('/src/sight/engine.ts');const audio=await import('/src/audio.ts');
-    const s=engine.sanitizeSight(JSON.parse(localStorage.getItem('note-garden-sight-settings-v1')));const ex=engine.generateExercise(s,Math.floor(.123456789*0xffffffff));
+    const s=engine.sanitizeSight(JSON.parse(localStorage.getItem('note-garden-sight-settings-v1')));const ex=engine.generateExercise(s,...(()=>{const m=document.querySelector('.score-system').dataset.exerciseId.match(/^sr-v\d+-(\d+)-(\d+)-([^-]+)-(.+)$/);return [Number(m[1]),{key:m[3],meter:m[4]}];})());
     const start=window.clickTimes[0]+ex.barTicks*engine.secondsPerTick(ex,s.bpm);
     for(const n of engine.expectedNotes(ex,s.hands)){
       const timestamp=performance.now()+(start+n.tick*engine.secondsPerTick(ex,s.bpm)-audio.audioContext().currentTime+s.latency/1000)*1000;
@@ -118,7 +118,7 @@ try{
   await page.locator('.sight-transport .primary-button').click();
   await page.getByText('慢練中：',{exact:false}).waitFor();
   await page.evaluate(async()=>{
-    const e=await import('/src/sight/engine.ts');const s=e.sanitizeSight(JSON.parse(localStorage.getItem('note-garden-sight-settings-v1')));window.singleHandExpected=e.expectedNotes(e.generateExercise(s,Math.floor(.123456789*0xffffffff)),s.hands);
+    const e=await import('/src/sight/engine.ts');const s=e.sanitizeSight(JSON.parse(localStorage.getItem('note-garden-sight-settings-v1')));window.singleHandExpected=e.expectedNotes(e.generateExercise(s,...(()=>{const m=document.querySelector('.score-system').dataset.exerciseId.match(/^sr-v\d+-(\d+)-(\d+)-([^-]+)-(.+)$/);return [Number(m[1]),{key:m[3],meter:m[4]}];})()),s.hands);
     const chordIndex=window.singleHandExpected.findIndex((n,i,a)=>a[i+1]?.tick===n.tick);if(chordIndex<0)throw Error('Expected a double-note chord');
     window.singleHandPlayed=chordIndex+1;
     for(const n of window.singleHandExpected.slice(0,window.singleHandPlayed)){window.testMidi.input.onmidimessage({data:new Uint8Array([0x90,n.midi,100]),timeStamp:performance.now()});window.testMidi.input.onmidimessage({data:new Uint8Array([0x80,n.midi,0]),timeStamp:performance.now()});}

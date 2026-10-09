@@ -1,4 +1,5 @@
-import { keyAlteration, writtenPitch } from '../grades';
+import { composeExercise } from './composition';
+import type { CompositionPlan } from './composition';
 import type { Note } from '../music';
 
 export const TPQ = 480;
@@ -24,8 +25,8 @@ export function sanitizeSight(value: Partial<SightReadingSettings>): SightReadin
 export type ScoreEvent = { id: string; hand: Hand; bar: number; tick: number; duration: number; notes: Note[]; clef: 'treble' | 'bass'; tuplet?: string; tieFrom?: string; tieTo?: string; wholeBarRest?: boolean };
 export type PhraseMark = { from: string; to: string; hand: Hand };
 export type DynamicMark = { eventId: string; value: 'p' | 'mp' | 'mf' };
-export type Exercise = { id: string; grade: number; key: string; keyCount: number; meter: string; bars: number; barTicks: number; totalTicks: number; beatTicks: number; groups: number[]; events: ScoreEvent[]; phrases: PhraseMark[]; dynamics: DynamicMark[]; tempoText: string };
-const keyInfo: Record<string, [number, string, boolean]> = { C:[0,'C',false],G:[1,'G',false],F:[-1,'F',false],Dm:[-1,'D',true],Am:[0,'A',true],D:[2,'D',false],Em:[1,'E',true],Gm:[-2,'G',true],A:[3,'A',false],Bb:[-2,'B',false],Eb:[-3,'E',false],Bm:[2,'B',true],E:[4,'E',false],Ab:[-4,'A',false],'F#m':[3,'F',true],Cm:[-3,'C',true],'C#m':[4,'C',true],Fm:[-4,'F',true],B:[5,'B',false],Db:[-5,'D',false] };
+export type Exercise = { id: string; grade: number; key: string; keyCount: number; meter: string; bars: number; barTicks: number; totalTicks: number; beatTicks: number; groups: number[]; events: ScoreEvent[]; phrases: PhraseMark[]; dynamics: DynamicMark[]; tempoText: string; seed: number; generatorVersion: number; composition: CompositionPlan };
+export const keyInfo: Record<string, [number, string, boolean]> = { C:[0,'C',false],G:[1,'G',false],F:[-1,'F',false],Dm:[-1,'D',true],Am:[0,'A',true],D:[2,'D',false],Em:[1,'E',true],Gm:[-2,'G',true],A:[3,'A',false],Bb:[-2,'B',false],Eb:[-3,'E',false],Bm:[2,'B',true],E:[4,'E',false],Ab:[-4,'A',false],'F#m':[3,'F',true],Cm:[-3,'C',true],'C#m':[4,'C',true],Fm:[-4,'F',true],B:[5,'B',false],Db:[-5,'D',false] };
 export function meterInfo(meter: string) {
   const [n,d] = meter.split('/').map(Number);
   const groups = d === 8 && n >= 6 && n % 3 === 0 ? Array(n / 3).fill(3) as number[] : n === 5 ? [3,2] : n === 7 ? [2,2,3] : Array(n).fill(1) as number[];
@@ -33,34 +34,17 @@ export function meterInfo(meter: string) {
   return { barTicks:n * 1920 / d, beatTicks, groups };
 }
 export function beatLabel(ex: Exercise) { return ex.beatTicks === 720 ? '附點四分音符' : ex.beatTicks === 240 ? '八分音符' : '四分音符'; }
-const pick = <T,>(values:T[], rng:()=>number) => values[Math.floor(rng() * values.length)];
 export function seededRandom(seed: number) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15,1 | seed); t = t + Math.imul(t ^ t >>> 7,61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 
-type Rhythm = { duration: number; rest?: boolean; triplet?: boolean };
-// Templates are complete beat groups. Negative values denote a planned breath.
-function rhythmGroup(ticks: number, grade: number, compound: boolean, variant: number, breath: boolean): Rhythm[] {
-  let templates: number[][];
-  if (ticks === 240) templates = grade >= 3 ? [[240],[120,120]] : [[240]];
-  else if (ticks === 480) templates = grade >= 3 ? [[480],[240,240],[120,120,120,120],[360,120]] : [[480],[240,240]];
-  else if (ticks === 720) templates = [[720],[480,240],[240,240,240],[240,480]];
-  else if (ticks === 960) templates = grade >= 3 ? [[960],[480,480],[480,240,240],[240,240,480],[240,240,240,240],[480,120,120,120,120]] : [[960],[480,480],[480,240,240],[240,240,480]];
-  else if (ticks === 1440) templates = [[1440],[960,480],[480,480,480],[480,480,240,240]];
-  else templates = [[1920],[960,960]];
-  if (grade >= 2 && ticks === 960) templates.push([720,240]);
-  if (grade >= 5 && ticks === 960 && !compound) templates.push([240,480,240]);
-  if (breath && ticks >= 480) templates = ticks === 720 ? [[480,-240],[240,240,-240]] : ticks === 960 ? [[480,-480],[240,240,-480]] : ticks === 1440 ? [[960,-480]] : [[240,-240]];
-  const values = templates[variant % templates.length];
-  if (grade >= 6 && !compound && !breath && ticks === 960 && variant % 5 === 0) return [160,160,160,480].map((duration,i)=>({duration,triplet:i<3}));
-  return values.map(v=>({duration:Math.abs(v),rest:v<0}));
-}
-function rhythmBlocks(meter:string):number[] {
+export type Rhythm = { duration: number; rest?: boolean; triplet?: boolean };
+export function rhythmBlocks(meter:string):number[] {
   const {barTicks,groups}=meterInfo(meter);const [n,d]=meter.split('/').map(Number);
   if(d===8)return groups.length===n && n===3 ? [720] : groups.map(g=>g*240);
   if(n===4)return [960,960];
   if(n===3)return [960,480];
   return n===2 ? [960] : groups.map(g=>g*480);
 }
-function closingRhythm(ticks:number,grade:number,meter?:string):Rhythm[] {
+export function closingRhythm(ticks:number,grade:number,meter?:string):Rhythm[] {
   if(grade===1&&ticks===1920)return [{duration:960},{duration:960}];
   if(meter&&['5/8','7/8','5/4','7/4','9/8','12/8'].includes(meter)){
     const values=meter==='9/8'?[1440,720]:meter==='12/8'?[1440,1440]:rhythmBlocks(meter);
@@ -82,99 +66,7 @@ export function mergeRests(events:ScoreEvent[],meter:string):ScoreEvent[] {
 }
 
 export function generateExercise(settings: SightReadingSettings, seed = Math.floor(Math.random()*0xffffffff), force?: {key?:string;meter?:string}): Exercise {
-  const p = sightProfiles[settings.grade-1]; const rng = seededRandom(seed);
-  const key = force?.key ?? pick(p.keys,rng); const meter = force?.meter ?? pick(p.meters,rng);
-  if (!p.keys.includes(key) || !p.meters.includes(meter)) throw new Error('調性或拍子超出級別');
-  const [keyCount,tonic,minor] = keyInfo[key];
-  const {barTicks,beatTicks,groups} = meterInfo(meter); const bars = settings.short ? 4 : p.bars;
-  const events: ScoreEvent[] = [];
-  const tonicIndex = 'CDEFGAB'.indexOf(tonic);
-  // Registers remain disjoint, even with three-note chords and chromatic alterations.
-  function scaleNote(degree: number, hand: Hand, harmonic = false): Note {
-    const absolute = (hand === 'right' ? 4 : 3) * 7 + tonicIndex + degree;
-    const letter = 'CDEFGAB'[((absolute % 7)+7)%7]; const octave = Math.floor(absolute/7);
-    let alteration = keyAlteration(keyCount,letter);
-    if (minor && harmonic && ((degree % 7)+7)%7 === 6) alteration++;
-    const midi = writtenPitch(letter,octave,alteration);
-    return { midi,letter,octave,alteration,accidental:'',clef:hand === 'right' ? 'treble' : 'bass',key:keyCount };
-  }
-  const contour=pick([[0,1,2,1,0,-1,0,1],[0,2,1,0,1,2,3,2],[0,-1,0,2,1,0,-1,0]],rng);
-  const variant=Math.floor(rng()*100);
-  const phrases:PhraseMark[]=[];const dynamics:DynamicMark[]=[];let melodyDegree=0;
-  for (let bar=0;bar<bars;bar++) {
-    const final=bar===bars-1;const cadence=bar===bars-2;
-    const phraseEnd=(bar+1)%4===0;
-    const dominant=cadence||(!final&&(bar%4===2||phraseEnd));
-    const root=final?0:dominant?4:bar%4===1?3:0;
-    for(const hand of ['right','left'] as const){
-      const inactive=settings.grade===1&&(bar%2===0?hand==='left':hand==='right');
-      const blocks=rhythmBlocks(meter);
-      let pattern:Rhythm[];
-      if(inactive)pattern=[{duration:barTicks,rest:true}];
-      else if(final||phraseEnd)pattern=closingRhythm(barTicks,settings.grade,meter);
-      else if(hand==='left'&&settings.grade>=2){
-        // The accompaniment has its own slower harmonic rhythm.
-        pattern=settings.grade===2?closingRhythm(barTicks,2,meter):blocks.flatMap((block,i)=>settings.grade>=4&&bar%2===1?rhythmGroup(block,2,meter.endsWith('/8'),variant+i,false):closingRhythm(block,2));
-      }else pattern=blocks.flatMap((block,i)=>rhythmGroup(block,settings.grade,['6/8','9/8','12/8'].includes(meter),variant+bar%2*3+i,(bar%4===1)&&i===blocks.length-1));
-      let offset=0;let lastDegree=hand==='right'?melodyDegree:root;
-      const barEvents:ScoreEvent[]=[];
-      for(let i=0;i<pattern.length;i++){
-        const {duration,triplet,rest}=pattern[i];
-        const groupStart=offset===0||blocks.slice(0,-1).some((_,k)=>blocks.slice(0,k+1).reduce((a,b)=>a+b,0)===offset);
-        let degree:number;
-        if(settings.grade<3){
-          degree=final?0:dominant?4:Math.max(0,Math.min(4,contour[(i+bar%2*2)%contour.length]+2));
-          if(settings.grade===2&&(hand==='left'||groupStart))degree=final?0:root;
-        }else if(hand==='left'){
-          const bass=root===4?-3:root===3?-4:0;
-          degree=bass+(settings.grade>=4?[0,4,2,4][i%4]:0);
-          if(final)degree=0;
-        }else{
-          const chordDegrees=[root,root+2,root+4,root+7,root+9,root+11].filter(d=>d<=11);
-          const desired=Math.max(0,Math.min(11,lastDegree+contour[(i+bar%2)%contour.length]));
-          degree=groupStart?chordDegrees.reduce((a,b)=>Math.abs(a-desired)<=Math.abs(b-desired)?a:b):desired;
-          if((cadence||phraseEnd)&&i===pattern.length-1)degree=6;
-          if(settings.grade>=4&&i===2&&bar%4===0&&!final&&!cadence)degree=lastDegree;
-          if(final)degree=7;
-        }
-        lastDegree=degree;
-        const maxChord=settings.grade<3?1:settings.grade<5?(bar%2===0?(hand==='right'?2:1):(hand==='left'?2:1)):p.chordSize;
-        const chord=!rest&&(final||(groupStart&&bar%2===0&&(hand==='left'||bar%4===2)))?maxChord:1;
-        const notes:Note[]=[];
-        if(!rest)for(let j=0;j<chord;j++){
-          const voicedDegree=hand==='left'?Math.min(degree,6-2*(chord-1)):degree;
-          const note=scaleNote(voicedDegree+j*2,hand,dominant);
-          // Occasional chromatic neighbour, resolving by step in the same bar.
-          if(settings.grade>=4&&hand==='right'&&!groupStart&&!final&&!cadence&&i===1&&pattern.length>2&&bar%4===0){note.alteration=Math.max(-1,Math.min(1,(note.alteration??0)-1));note.midi=writtenPitch(note.letter,note.octave,note.alteration);}
-          notes.push(note);
-        }
-        barEvents.push({id:`${hand}-${bar}-${i}`,hand,bar,tick:bar*barTicks+offset,duration,notes,clef:hand==='right'?'treble':'bass',wholeBarRest:inactive||undefined,tuplet:triplet?`${hand}-${bar}-${Math.floor(offset/480)}-triplet`:undefined});
-        offset+=duration;
-      }
-      if(hand==='right'&&barEvents.some(e=>e.notes.length))melodyDegree=lastDegree;
-      const highest=Math.max(...barEvents.flatMap(e=>e.notes.map(n=>n.midi)));
-      const clef=settings.grade>=6&&hand==='left'&&highest>=64?'treble':hand==='right'?'treble':'bass';
-      for(const event of barEvents){event.clef=clef;event.notes.forEach(n=>n.clef=clef);}
-      events.push(...mergeRests(barEvents,meter));
-    }
-  }
-  // Tie only genuine repeated pitches; never change harmony to manufacture a tie.
-  if(settings.grade>=2)for(const hand of ['right','left'] as const)for(let bar=1;bar<bars-1;bar+=4){
-    const before=events.filter(e=>e.hand===hand&&e.bar===bar-1).at(-1)!;const next=events.find(e=>e.hand===hand&&e.bar===bar)!;
-    if(before.notes.length===1&&next.notes.length===1&&!before.tuplet&&!next.tuplet&&before.clef===next.clef&&before.notes[0].midi===next.notes[0].midi){before.tieTo=next.id;next.tieFrom=before.id;}
-  }
-  for(const hand of ['right','left'] as const){
-    let segment:ScoreEvent[]=[];
-    const flush=()=>{if(segment.length>1)phrases.push({from:segment[0].id,to:segment.at(-1)!.id,hand});segment=[];};
-    for(const event of events.filter(e=>e.hand===hand)){
-      if(!event.notes.length){flush();continue;}
-      if(segment.length&&Math.floor(segment[0].bar/2)!==Math.floor(event.bar/2))flush();
-      segment.push(event);
-    }flush();
-  }
-  for(let bar=0;bar<bars;bar+=4){const event=events.find(e=>e.bar>=bar&&e.notes.length);if(event)dynamics.push({eventId:event.id,value:bar===0?'mp':bar+4>=bars?'p':'mf'});}
-
-  return {id:`sr-${seed}-${settings.grade}-${key}-${meter}`,grade:settings.grade,key,keyCount,meter,bars,barTicks,totalTicks:bars*barTicks,beatTicks,groups,events,phrases,dynamics,tempoText:settings.grade<3?'Andante cantabile':'Moderato'};
+  return composeExercise(settings, seed, force);
 }
 
 export type ExpectedNote = { id: string; eventId: string; midi:number; tick:number; hand:Hand };

@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { audioContext, playNote, resumeAudio, scheduleClick, scheduleTone } from '../audio';
 import { MidiControl, type MidiInputEvent } from '../midi';
 import { isBlack, pitchName } from '../music';
-import { assessInput, beatLabel, emptyAssessment, expectedNotes, generateExercise, sanitizeSight, secondsPerTick, sightDefaults, sightProfiles, slowInput, summarize, type Assessment, type Exercise, type PerformanceResult, type SightReadingSettings } from './engine';
+import { assessInput, beatLabel, emptyAssessment, expectedNotes, sanitizeSight, secondsPerTick, sightDefaults, sightProfiles, slowInput, summarize, type Assessment, type Exercise, type PerformanceResult, type SightReadingSettings } from './engine';
+import { generateFreshExercise, generationHistoryKey, parseGeneratedHistory, rememberGenerated, type GeneratedSummary } from './diversity';
 import { Score } from './Score';
 import './sight.css';
 const settingsKey='note-garden-sight-settings-v1';const resultsKey='note-garden-sight-results-v1';
@@ -13,7 +14,7 @@ type Run={phase:Phase;kind:'timed'|'slow'|'demo';start:number;previewEnd:number;
 const shortcut:Record<string,number>={'1':0,'2':2,'3':4,'4':5,'5':7,'6':9,'7':11,q:1,w:3,r:6,t:8,y:10};
 const noNote=()=>{};
 export function SightReading(){
-  const [settings,setSettings]=useState(loadSettings);const [exercise,setExercise]=useState(()=>generateExercise(settings));const [phase,setPhase]=useState<Phase>('idle');
+  const [settings,setSettings]=useState(loadSettings);const [exercise,setExercise]=useState(()=>{let recent:GeneratedSummary[];try{recent=parseGeneratedHistory(localStorage.getItem(generationHistoryKey));}catch{recent=[];}return generateFreshExercise(settings,recent);});const [phase,setPhase]=useState<Phase>('idle');
   const [assessment,setAssessment]=useState(emptyAssessment);const [tick,setTick]=useState(-1);const [count,setCount]=useState(0);const [listened,setListened]=useState(false);const listenedRef=useRef(false);
   const [result,setResult]=useState<PerformanceResult|null>(null);const [history,setHistory]=useState(loadHistory);const [notice,setNotice]=useState('先觀察調號、拍子與雙手位置，再開始視奏。');
   const [octave,setOctave]=useState(4);const [pressed,setPressed]=useState<number|null>(null);const [starting,setStarting]=useState(false);
@@ -21,6 +22,7 @@ export function SightReading(){
   const current=useRef({settings,exercise});current.current={settings,exercise};
   const locked=starting||['preview','countin','playing','slow','demo'].includes(phase);
   useEffect(()=>{try{localStorage.setItem(settingsKey,JSON.stringify(settings));}catch{/* Optional storage. */}},[settings]);
+  useEffect(()=>{try{const recent=parseGeneratedHistory(localStorage.getItem(generationHistoryKey));localStorage.setItem(generationHistoryKey,JSON.stringify(rememberGenerated(recent,exercise)));}catch{/* Optional storage. */}},[exercise]);
   function clearRun(){token.current++;const active=run.current;run.current=null;active?.cancel.forEach(cancel=>cancel());held.current.clear();setStarting(false);}
   function abort(message='已停止，本次不記錄成績；可重練原曲。'){if(!run.current&&!starting)return;clearRun();setPhase('aborted');setTick(-1);setNotice(message);}
   function complete(active:Run){const {settings:s,exercise:ex}=current.current;const record=summarize(ex,s,active.assessment,listenedRef.current);clearRun();setAssessment(active.assessment);setResult(record);setPhase('complete');setTick(-1);setNotice('練習完成。查看音高與起音節奏，再選擇重練或換一首。');setHistory(previous=>{const next=[record,...previous].slice(0,20);try{localStorage.setItem(resultsKey,JSON.stringify(next));}catch{/* Optional storage. */}return next;});}
@@ -35,7 +37,7 @@ export function SightReading(){
       else countIn(active,ctx.currentTime+.1);
     }catch{setStarting(false);setNotice('無法啟動音訊，請確認瀏覽器聲音權限後重試。');}
   }
-  function newExercise(patch:Partial<SightReadingSettings>={}){const next=sanitizeSight({...settings,...patch});setSettings(next);const ex=generateExercise(next);setExercise(ex);listenedRef.current=false;setListened(false);setAssessment(emptyAssessment());setResult(null);setPhase('idle');setTick(-1);setNotice('新曲已準備好，先看調號與拍子。');}
+  function newExercise(patch:Partial<SightReadingSettings>={}){const next=sanitizeSight({...settings,...patch});let recent:GeneratedSummary[];try{recent=parseGeneratedHistory(localStorage.getItem(generationHistoryKey));}catch{recent=[];}let ex:Exercise;try{ex=generateFreshExercise(next,recent);}catch(error){setNotice(error instanceof Error?error.message:'無法產生新曲，請再試一次。');return;}setSettings(next);setExercise(ex);listenedRef.current=false;setListened(false);setAssessment(emptyAssessment());setResult(null);setPhase('idle');setTick(-1);setNotice('新曲已準備好，先看調號與拍子。');}
   function update(patch:Partial<SightReadingSettings>,regenerate=false){if(locked)return;if(regenerate){newExercise(patch);return;}setSettings(s=>sanitizeSight({...s,...patch}));setResult(null);setAssessment(emptyAssessment());setPhase('idle');setTick(-1);}
   function input(midi:number,timestamp=performance.now(),source='screen'){
     setPressed(midi);clearTimeout(pressedTimer.current);pressedTimer.current=setTimeout(()=>setPressed(null),180);

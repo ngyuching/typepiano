@@ -1,7 +1,7 @@
 import type { Exercise, ScoreEvent } from './engine';
 import { displayAccidentals } from './notation';
 
-const types:Record<number,string>={1920:'whole',1440:'half',960:'half',720:'quarter',480:'quarter',360:'eighth',240:'eighth',160:'eighth',120:'16th'};
+const types:Record<number,string>={1920:'whole',1440:'half',960:'half',720:'quarter',480:'quarter',360:'eighth',240:'eighth',160:'eighth',120:'16th',80:'16th'};
 const escape=(s:string)=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]!));
 
 /** Standard MusicXML is the boundary between exercise generation and engraving. */
@@ -42,7 +42,7 @@ export function exerciseMusicXML(ex:Exercise):string {
           if(!event.wholeBarRest)xml+=`<type>${types[event.duration]}</type>${[1440,720,360].includes(event.duration)?'<dot/>':''}`;
           const sign=signs.get(event.id)?.[i];
           if(pitch&&sign)xml+=`<accidental>${({'#':'sharp','b':'flat','n':'natural'} as Record<string,string>)[sign]}</accidental>`;
-          if(event.tuplet)xml+='<time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes><normal-type>eighth</normal-type></time-modification>';
+          if(event.tuplet)xml+=`<time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes><normal-type>${event.duration===80?'16th':'eighth'}</normal-type></time-modification>`;
           xml+=`<staff>${staff}</staff>`;
           if(!i)xml+=beam(event,index,1)+beam(event,index,2);
           let notation='';
