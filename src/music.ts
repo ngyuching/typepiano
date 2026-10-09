@@ -13,6 +13,7 @@ export function normalizeSettings(value: Partial<Settings>): Settings {
   s.high = Number.isInteger(s.high) ? Math.max(s.low, Math.min(84, s.high)) : Math.max(s.low, defaults.high);
   if (!['treble', 'bass', 'alto', 'tenor', 'mixed'].includes(s.clef)) s.clef = defaults.clef;
   if (!Number.isInteger(s.grade) || s.grade < 0 || s.grade > 8) s.grade = 0;
+  if (s.grade && (s.clef === 'alto' || s.clef === 'tenor')) s.clef = 'mixed';
   if (!['standard', 'infinite'].includes(s.mode)) s.mode = defaults.mode;
   for (const k of ['accidentals', 'hints', 'muted', 'traps', 'rowKeys'] as const) s[k] = typeof s[k] === 'boolean' ? s[k] : defaults[k];
   // A natural-only range must contain at least one playable natural note.

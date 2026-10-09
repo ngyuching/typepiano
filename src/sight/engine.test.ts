@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assessInput, emptyAssessment, expectedNotes, generateExercise, meterInfo, sanitizeSight, secondsPerTick, sightDefaults, sightProfiles, slowInput, summarize } from './engine';
+import { assessInput, emptyAssessment, expectedNotes, generateExercise, meterInfo, mergeRests, sanitizeSight, secondsPerTick, sightDefaults, sightProfiles, slowInput, summarize } from './engine';
 import { writtenPitch } from '../grades';
 import { decodeMidi } from '../midi';
+import { exerciseMusicXML } from './musicxml';
 import { displayAccidentals } from './notation';
 import type { ScoreEvent } from './engine';
 test('all grade/key/meter combinations have valid bars, ranges, hands, chords and rhythms',()=>{
@@ -17,7 +18,7 @@ test('all grade/key/meter combinations have valid bars, ranges, hands, chords an
       for(const e of events){assert.equal(e.tick,tick);tick+=e.duration;assert.ok(e.notes.length<=profile.chordSize);const midis=e.notes.map(n=>n.midi);if(midis.length)assert.ok(Math.max(...midis)-Math.min(...midis)<=12);
         for(const note of e.notes){assert.ok(note.midi>=21&&note.midi<=108);assert.equal(note.midi,writtenPitch(note.letter,note.octave,note.alteration!));}
         if(profile.grade<3)assert.ok(e.duration>=240);
-        if(profile.grade===1)assert.ok([1440,960,480,240].includes(e.duration),'Grade 1 excludes whole notes and advanced rhythms');
+        if(profile.grade===1&&!e.wholeBarRest)assert.ok([1440,960,480,240].includes(e.duration),'Grade 1 excludes whole notes and advanced rhythms');
         if(profile.grade<6){assert.equal(e.tuplet,undefined);assert.equal(e.clef,hand==='right'?'treble':'bass');}
         if(e.tieFrom){const before=ex.events.find(p=>p.id===e.tieFrom)!;assert.equal(before.tieTo,e.id);assert.deepEqual(before.notes.map(n=>n.midi),e.notes.map(n=>n.midi));assert.equal(before.tick+before.duration,e.tick);}
       }
@@ -74,4 +75,62 @@ test('notation accidentals carry within a bar, distinguish octaves, cancel, and 
   assert.deepEqual([...signs.values()],[['#'],[null],['n'],['#'],['#']]);
   assert.deepEqual([...displayAccidentals([event('a','F',4,1),event('b','F',4,0),event('c','F',4,1)],1).values()],[[null],['n'],['#']]);
   assert.deepEqual([...displayAccidentals([event('a','C',4,1,'previous-bar'),event('b','C',4,0),event('c','C',4,1)],0).values()],[[null],[null],['#']]);
+});
+
+
+test('inactive Grade 1 hands use exactly one silent bar of the real meter duration',()=>{
+  for(const meter of sightProfiles[0].meters)for(let seed=0;seed<20;seed++){
+    const ex=generateExercise(sightDefaults,seed,{meter});
+    for(let bar=0;bar<ex.bars;bar++){
+      const inactive=ex.events.filter(e=>e.bar===bar&&e.hand===(bar%2===0?'left':'right'));
+      assert.equal(inactive.length,1);assert.equal(inactive[0].wholeBarRest,true);
+      assert.equal(inactive[0].duration,ex.barTicks);assert.equal(inactive[0].notes.length,0);
+      assert.ok(!expectedNotes(ex,'both').some(n=>n.eventId===inactive[0].id));
+    }
+  }
+});
+
+test('partial rests merge within beat groups and preserve simple/compound/irregular boundaries',()=>{
+  const rest=(tick:number,duration:number):ScoreEvent=>({id:String(tick),hand:'right',bar:0,tick,duration,notes:[],clef:'treble'});
+  const sound={...rest(0,480),notes:[{midi:60,letter:'C',octave:4,accidental:'' as const,clef:'treble' as const}]};
+  assert.deepEqual(mergeRests([sound,rest(480,240),rest(720,240),rest(960,480),rest(1440,480)],'4/4').map(e=>e.duration),[480,480,960]);
+  assert.deepEqual(mergeRests([{...sound,duration:240},rest(240,240),rest(480,240),rest(720,240),rest(960,240),rest(1200,240)],'6/8').map(e=>e.duration),[240,480,720]);
+  assert.deepEqual(mergeRests([{...sound,duration:240},rest(240,240),rest(480,240),rest(720,240),rest(960,240),rest(1200,240),rest(1440,240)],'7/8').map(e=>e.duration),[240,240,480,720]);
+  const full=mergeRests([rest(0,480),rest(480,480),rest(960,480)],'3/4');assert.equal(full.length,1);assert.equal(full[0].duration,1440);assert.equal(full[0].wholeBarRest,true);
+});
+
+test('musical phrases, accompaniment, leading tones and cadences remain coherent across seeds',()=>{
+  let triplets=0,ties=0,changes=0;
+  for(let grade=1;grade<=8;grade++)for(let seed=0;seed<30;seed++){
+    const ex=generateExercise({...sightDefaults,grade},seed,{key:grade>=2?'Em':'C',meter:'4/4'});
+    assert.ok(ex.phrases.length);assert.ok(ex.dynamics.length);assert.ok(ex.tempoText);
+    for(const phrase of ex.phrases){const first=ex.events.find(e=>e.id===phrase.from)!;const last=ex.events.find(e=>e.id===phrase.to)!;assert.equal(first.hand,last.hand);assert.ok(first.tick<last.tick);}
+    for(const hand of ['right','left'] as const){
+      const final=ex.events.filter(e=>e.hand===hand&&e.bar===ex.bars-1&&e.notes.length);
+      if(final.length)assert.equal(final[0].notes[0].letter,grade===1?'C':'E');
+      if(grade===2){const notes=ex.events.filter(e=>e.hand===hand).flatMap(e=>e.notes);const positions=notes.map(n=>n.octave*7+'CDEFGAB'.indexOf(n.letter));assert.ok(Math.max(...positions)-Math.min(...positions)<=4);}
+    }
+    if(grade>=2){const lh=ex.events.filter(e=>e.hand==='left');const rh=ex.events.filter(e=>e.hand==='right');assert.ok(lh.filter(e=>e.notes.length).length<=rh.filter(e=>e.notes.length).length);}
+    if(grade>=3){const leading=ex.events.filter(e=>e.hand==='right'&&e.bar===ex.bars-2).at(-1)!;assert.equal(leading.notes[0].letter,'D');assert.equal(leading.notes[0].alteration,1);const tonic=ex.events.find(e=>e.hand==='right'&&e.bar===ex.bars-1)!;assert.equal(tonic.notes[0].midi-leading.notes[0].midi,1,'leading tone resolves up a semitone');}
+    triplets+=ex.events.filter(e=>e.tuplet).length;ties+=ex.events.filter(e=>e.tieFrom).length;
+    changes+=ex.events.filter(e=>e.hand==='left'&&e.clef==='treble').length;
+  }
+  assert.ok(triplets>0,'triplets');assert.ok(ties>0,'ties');
+  changes+=generateExercise({...sightDefaults,grade:8},4,{key:'B',meter:'4/4'}).events.filter(e=>e.hand==='left'&&e.clef==='treble').length;
+  assert.ok(changes>0,'clef changes');
+});
+
+
+test('MusicXML preserves real durations, whole-bar silence, chords and independent phrase/tie notation',()=>{
+  for(let grade=1;grade<=8;grade++)for(const meter of sightProfiles[grade-1].meters){
+    const ex=generateExercise({...sightDefaults,grade,short:true},44,{meter});const xml=exerciseMusicXML(ex);
+    assert.equal((xml.match(/<measure number=/g)||[]).length,4);
+    assert.equal((xml.match(/<backup>/g)||[]).length,4);
+    assert.equal((xml.match(/<note id=/g)||[]).length,ex.events.reduce((n,e)=>n+Math.max(1,e.notes.length),0));
+    assert.equal((xml.match(/<rest measure="yes"/g)||[]).length,ex.events.filter(e=>e.wholeBarRest).length);
+    for(const event of ex.events){const match=xml.match(new RegExp(`<note id="${event.id}-0">([\\s\\S]*?)</note>`));assert.ok(match);assert.ok(match[1].includes(`<duration>${event.duration}</duration>`));if(event.wholeBarRest)assert.ok(!match[1].includes('<type>'));}
+    assert.ok(xml.includes('<bar-style>light-heavy</bar-style>'));
+    assert.equal((xml.match(/<slur type="start"/g)||[]).length,ex.phrases.length);
+    assert.equal((xml.match(/<slur type="stop"/g)||[]).length,ex.phrases.length);
+  }
 });

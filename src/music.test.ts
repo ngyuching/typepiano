@@ -63,7 +63,7 @@ test('graded rows use allowed keys and consistent clefs; all spellings match sou
         if (i && i % 10 === 0) assert.notEqual(n.key, notes[i - 1].key);
         if (i) assert.notEqual(n.midi, notes[i - 1].midi);
         if (profile.grade < 4) assert.ok(Math.abs(n.alteration!) < 2);
-        if (profile.grade < 4) assert.ok(['treble','bass'].includes(n.clef));
+        assert.ok(['treble','bass'].includes(n.clef));
         if (profile.grade === 4) assert.notEqual(n.clef, 'tenor');
         if (profile.grade === 1) assert.ok(staffStep(n) >= (n.clef === 'bass' ? 0 : -2) && staffStep(n) <= (n.clef === 'bass' ? 10 : 8));
         if (profile.grade === 2) assert.ok(staffStep(n) >= -4 && staffStep(n) <= 12);
@@ -93,4 +93,14 @@ test('MIDI accepts note-on on all channels and ignores release, pedals and malfo
   assert.equal(midiNote([0xb0,64,127]), null);
   assert.equal(midiNote([0xf8]), null);
   assert.equal(midiNote([0x90,128,100]), null);
+});
+
+
+test('piano grade settings migrate legacy clefs while custom theory keeps them',()=>{
+  for(const clef of ['alto','tenor'] as const){
+    assert.equal(normalizeSettings({...defaults,grade:5,clef}).clef,'mixed');
+    assert.equal(normalizeSettings({...defaults,grade:0,clef}).clef,clef);
+    assert.ok(generate({...defaults,grade:0,clef,rowKeys:true,accidentals:true},30).every(n=>n.clef===clef));
+    assert.ok(generate({...defaults,grade:5,clef,rowKeys:true,accidentals:true},30).every(n=>['treble','bass'].includes(n.clef)));
+  }
 });

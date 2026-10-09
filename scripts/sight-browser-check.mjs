@@ -114,14 +114,19 @@ try{
   await page.getByRole('button',{name:'Grade 3',exact:true}).click();
   await page.getByLabel('練習方式').selectOption('slow');
   await page.getByLabel('聲部').selectOption('right');
+  await page.waitForFunction(()=>{const e=document.querySelector('.score-system');return e?.dataset.renderedExercise===e?.dataset.exerciseId&&e?.dataset.renderedExercise;});
   await page.locator('.sight-transport .primary-button').click();
   await page.getByText('慢練中：',{exact:false}).waitFor();
   await page.evaluate(async()=>{
     const e=await import('/src/sight/engine.ts');const s=e.sanitizeSight(JSON.parse(localStorage.getItem('note-garden-sight-settings-v1')));window.singleHandExpected=e.expectedNotes(e.generateExercise(s,Math.floor(.123456789*0xffffffff)),s.hands);
-    const midi=window.singleHandExpected[0].midi;window.testMidi.input.onmidimessage({data:new Uint8Array([0x90,midi,100]),timeStamp:performance.now()});window.testMidi.input.onmidimessage({data:new Uint8Array([0x80,midi,0]),timeStamp:performance.now()});
+    const chordIndex=window.singleHandExpected.findIndex((n,i,a)=>a[i+1]?.tick===n.tick);if(chordIndex<0)throw Error('Expected a double-note chord');
+    window.singleHandPlayed=chordIndex+1;
+    for(const n of window.singleHandExpected.slice(0,window.singleHandPlayed)){window.testMidi.input.onmidimessage({data:new Uint8Array([0x90,n.midi,100]),timeStamp:performance.now()});window.testMidi.input.onmidimessage({data:new Uint8Array([0x80,n.midi,0]),timeStamp:performance.now()});}
   });
-  assert.ok(await page.locator('.score-note.partial').count()>0);
-  await page.evaluate(()=>{for(const n of window.singleHandExpected.slice(1)){window.testMidi.input.onmidimessage({data:new Uint8Array([0x90,n.midi,100]),timeStamp:performance.now()});window.testMidi.input.onmidimessage({data:new Uint8Array([0x80,n.midi,0]),timeStamp:performance.now()});}});
+  await page.locator('.score-note.partial').first().waitFor();
+  assert.ok(await page.locator('.score-note.partial .note-head-hit').count()>0,'partial chords highlight the matched head');
+  assert.ok(await page.locator('.note-head-hit').evaluateAll(heads=>heads.some(head=>head.getAnimations().length>0)),'correct notes have a hit animation');
+  await page.evaluate(()=>{for(const n of window.singleHandExpected.slice(window.singleHandPlayed)){window.testMidi.input.onmidimessage({data:new Uint8Array([0x90,n.midi,100]),timeStamp:performance.now()});window.testMidi.input.onmidimessage({data:new Uint8Array([0x80,n.midi,0]),timeStamp:performance.now()});}});
   await page.getByRole('heading',{name:'慢練完成，音符都找到了。'}).waitFor();
   const completed=await page.locator('.sight-history tbody tr').count();
   await page.locator('.sight-transport .primary-button').click();
